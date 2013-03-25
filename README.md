@@ -3,7 +3,7 @@ hashkernel.py
 
 Hash kernels are a method of representing very large sparse feature vectors.
 But with a little imagination, they can serve as a way to represent just about
-any kind of feature we can imagine.
+any kind of feature.
 
 Acknowledgements
 ----------------
