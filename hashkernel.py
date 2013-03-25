@@ -62,22 +62,45 @@ class HashKernelLogisticRegression(object):
         self.flush()
         self.hash_buffer[0,:] = 0
         self._add_feature_to_row(0, instance)
-        return self.clf.predict(self.hash_buffer[0,:])
+        return self.clf.predict(self.hash_buffer[0,:])[0]
 
-    def _add_feature_to_row(self, row, instance):
-        for ix, feature in enumerate(instance):
-            self._add_categorical(row, "%d"  % ix, feature)
+    def _add_feature_to_row(self, row, instance, hashables=None):
+        hashables = hashables or []
+        if isinstance(instance, dict) or hasattr(instance, "__dict__"):
+            if not isinstance(instance, dict):
+                instance = instance.__dict__
+            for key, feature in instance.iteritems():
+                self._add_feature_to_row(
+                    row,
+                    feature,
+                    hashables + ["dict_key_%s" % key])
+        elif isinstance(instance, (list, tuple)):
+            for ix, feature in enumerate(instance):
+                self._add_feature_to_row(
+                    row,
+                    feature,
+                    hashables + ["list_index_%d" % ix])
+        elif isinstance(instance, basestring):
+            if isinstance(instance, unicode):
+                instance = instance.encode('utf-8')
+            for word in instance.split():
+                self._add_categorical(row, hashables + ["word_%s" % word])
+        elif isinstance(instance, (int, long, float)):
+            self._add_categorical(row, hashables + ["numeric_%s" % instance])
 
     def _update_from_buffer(self, labels):
         self.clf.fit(self.hash_buffer[:len(labels),:], labels)
 
-    def _add_categorical(self, row, name, value):
+    def _add_categorical(self, row, hashables):
         for salt in self.salts:
-            feature_hash = self._hash_feature(name, str(value), salt)
+            feature_hash = reduce(
+                lambda hashed, hashable: self._hash_feature(hashable, hashed),
+                hashables,
+                salt)
             self._add_hash(row, feature_hash)
 
-    def _hash_feature(self, name, hashable_value, salt):
-        return zlib.crc32(hashable_value, zlib.crc32(name, salt))
+    def _hash_feature(self, hashable_value, previous_hash):
+        return zlib.crc32(hashable_value, previous_hash)
 
     def _add_hash(self, row, feature_hash):
         sign = 2 * ((feature_hash & (1 << self.bits)) >> self.bits) - 1
