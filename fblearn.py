@@ -107,9 +107,9 @@ def main(argv):
         fields = args.fields.split(",")
         fb_data_iterator(args.access_token, args.fb_file, fields)
     if not os.path.exists(args.fb_file):
-        print >>sys.stderr, "FB data file does not exist: ", args.fb_file
-        print >>sys.stderr, "Supply an access token to generate a data file."
-        parser.error()
+        parser.error(
+            ("FB data file does not exist: %s. "
+             "Supply an access token to generate a data file.") % args.fb_file)
         return 1
 
     fb_data = load_fb_data(args.fb_file)
