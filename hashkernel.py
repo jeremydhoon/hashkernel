@@ -33,7 +33,7 @@ class HashKernelLogisticRegression(object):
         self.clf = linear_model.LogisticRegression(penalty="l2")
         self.hash_buffer = np.zeros(
             (self.MAX_BUFFER_SIZE, 1 << self.bits),
-            dtype=np.int32)
+            dtype=np.float)
         self.buffered_instances = []
         self.buffered_labels = set()
         self.salts = salts or [0]
@@ -85,26 +85,36 @@ class HashKernelLogisticRegression(object):
                 instance = instance.encode('utf-8')
             for word in instance.split():
                 self._add_categorical(row, hashables + ["word_%s" % word])
-        elif isinstance(instance, (int, long, float)):
-            self._add_categorical(row, hashables + ["numeric_%s" % instance])
+        elif isinstance(instance, (int, long)):
+            self._add_categorical(row, hashables + ["int_%d" % instance])
+        elif isinstance(instance, float):
+            self._add_continuous(row, hashables, instance)
 
     def _update_from_buffer(self, labels):
         self.clf.fit(self.hash_buffer[:len(labels),:], labels)
 
+    def _hash_multiple(self, hashables, salt):
+        return reduce(
+            lambda hashed, hashable: self._hash_feature(hashable, hashed),
+            hashables,
+            salt)
+
     def _add_categorical(self, row, hashables):
         for salt in self.salts:
-            feature_hash = reduce(
-                lambda hashed, hashable: self._hash_feature(hashable, hashed),
-                hashables,
-                salt)
-            self._add_hash(row, feature_hash)
+            feature_hash = self._hash_multiple(hashables, salt)
+            self._add_hash(row, feature_hash, 1)
+
+    def _add_continuous(self, row, hashables, value):
+        for salt in self.salts:
+            index_hash = self._hash_multiple(hashables, salt)
+            self._add_hash(row, index_hash, value)
 
     def _hash_feature(self, hashable_value, previous_hash):
         return zlib.crc32(hashable_value, previous_hash)
 
-    def _add_hash(self, row, feature_hash):
+    def _add_hash(self, row, feature_hash, value):
         sign = 2 * ((feature_hash & (1 << self.bits)) >> self.bits) - 1
-        self.hash_buffer[row, feature_hash & self.bitmask] += sign
+        self.hash_buffer[row, feature_hash & self.bitmask] += sign * value
 
 def select_features(features, num_omitted):
     to_omit = set(random.sample(range(len(features)), num_omitted))
