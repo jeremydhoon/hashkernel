@@ -57,8 +57,10 @@ def extract_labels(fb_data, threshold):
     return [(item, is_liked(item, threshold))
             for item in copy.deepcopy(fb_data)]
 
-def train_test(instances, test_index, bits):
-    kernel = hashkernel.HashKernelLogisticRegression(bits=bits)
+def train_test(instances, test_index, bits, salts):
+    kernel = hashkernel.HashKernelLogisticRegression(
+        bits=bits,
+        salts=range(salts))
     test_instance, test_label = instances[test_index]
     for ix, (item, label) in enumerate(instances):
         if ix == test_index:
@@ -94,6 +96,8 @@ def main(argv):
                         help=("Minimum number of likes an object must "
                               "recieve in order to be considered a positive "
                               "instance."))
+    parser.add_argument("-s", "--salts", dest="salts", type=int, default=1,
+                        help="Number of salts to use.")
     parser.add_argument("-b", "--bits", dest="bits", action="store", type=int,
                         default=14, help="Number of hash kernel bits to use.")
     args = parser.parse_args(argv[1:])
@@ -119,7 +123,11 @@ def main(argv):
     count = len(fb_data)
     num_liked = sum([int(label) for _, label in labeled_fb_data])
     for test_index in xrange(count):
-        pred, label = train_test(labeled_fb_data, test_index, args.bits)
+        pred, label = train_test(
+            labeled_fb_data,
+            test_index,
+            args.bits,
+            args.salts)
         if pred and not label:
             false_positive += 1
         elif label and not pred:
